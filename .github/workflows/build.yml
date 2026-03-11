@@ -11,29 +11,28 @@ jobs:
     - name: Setup MSBuild
       uses: microsoft/setup-msbuild@v2
 
-    - name: Patch Code (Full Unicode Conversion)
+    - name: Surgical Patch (Fixing Dev's Shitcode)
       shell: powershell
       run: |
-        $path = "MaplePS.cpp"
-        $code = Get-Content $path
+        $code = Get-Content -Raw MaplePS.cpp
+        # Меняем хардкод ANSI-функций на Wide-версии
+        $code = $code.Replace('CreateProcessA', 'CreateProcessW')
+        $code = $code.Replace('GetFileAttributesA', 'GetFileAttributesW')
+        $code = $code.Replace('SetFileAttributesA', 'SetFileAttributesW')
+        $code = $code.Replace('DeleteFileA', 'DeleteFileW')
+        $code = $code.Replace('CopyFileA', 'CopyFileW')
+        $code = $code.Replace('lstrcmpA', 'lstrcmpW')
         
-        # 1. Добавляем L ко всем строкам, у которых его нет
-        # Это пофиксит ошибки сложения wstring + "string"
-        $code = $code -replace '(?<!L)"(.*?)"', 'L"$1"'
+        # Вырезаем нахуй кривой wcstombs_s со всеми аргументами до точки с запятой
+        $code = $code -replace 'wcstombs_s[^;]+;', ''
         
-        # 2. Меняем Ansi-функции на Wide-версии, раз уж мы в Unicode моде
-        $code = $code -replace 'CreateProcessA', 'CreateProcessW'
-        $code = $code -replace 'GetFileAttributesA', 'GetFileAttributesW'
-        $code = $code -replace 'SetFileAttributesA', 'SetFileAttributesW'
-        $code = $code -replace 'DeleteFileA', 'DeleteFileW'
-        $code = $code -replace 'CopyFileA', 'CopyFileW'
-        $code = $code -replace 'MessageBoxA', 'MessageBoxW'
-        $code = $code -replace 'CHAR', 'WCHAR'
-        
-        # 3. Фиксим wcstombs_s - это мусор для логов, просто закомментим его
-        $code = $code -replace 'wcstombs_s', '//wcstombs_s'
-        
-        $code | Set-Content $path
+        $code | Set-Content MaplePS.cpp
 
     - name: Build Solution
       run: msbuild MaplePS.sln /p:Configuration=Release /p:Platform=x64 /p:CharacterSet=Unicode
+
+    - name: Upload Artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: MaplePS-Binary
+        path: x64/Release/
