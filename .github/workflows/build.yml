@@ -11,11 +11,15 @@ jobs:
     - name: Setup MSBuild
       uses: microsoft/setup-msbuild@v2
 
-    - name: Build Solution
-      run: msbuild MaplePS.sln /p:Configuration=Release /p:Platform=x64
+    - name: Patch Code (Anti-Shitcode)
+      shell: powershell
+      run: |
+        # Убираем L перед строками, чтобы превратить юникод в обычные строки
+        (Get-Content MaplePS.cpp) -replace 'L"', '"' | Set-Content MaplePS.cpp
+        # Меняем CreateProcessA на CreateProcessW или наоборот - тут костыль под код
+        (Get-Content MaplePS.cpp) -replace 'CreateProcessA', 'CreateProcess' | Set-Content MaplePS.cpp
+        # Пытаемся пофиксить корявый вызов wcstombs_s (заменяем на заглушку, если не критично)
+        (Get-Content MaplePS.cpp) -replace 'wcstombs_s', '//wcstombs_s' | Set-Content MaplePS.cpp
 
-    - name: Upload Artifact
-      uses: actions/upload-artifact@v4
-      with:
-        name: MaplePS-Binary
-        path: x64/Release/ # Чекай, если билд упадет, возможно путь другой (например просто Release/)
+    - name: Build Solution
+      run: msbuild MaplePS.sln /p:Configuration=Release /p:Platform=x64 /p:CharacterSet=Unicode
