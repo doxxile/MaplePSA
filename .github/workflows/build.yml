@@ -11,19 +11,17 @@ jobs:
     - name: Setup MSBuild
       uses: microsoft/setup-msbuild@v2
 
-    - name: Surgical Patch (Fixing Dev's Shitcode)
+    - name: Surgical Patch v2 (Final Boss)
       shell: powershell
       run: |
         $code = Get-Content -Raw MaplePS.cpp
-        # Меняем хардкод ANSI-функций на Wide-версии
         $code = $code.Replace('CreateProcessA', 'CreateProcessW')
         $code = $code.Replace('GetFileAttributesA', 'GetFileAttributesW')
         $code = $code.Replace('SetFileAttributesA', 'SetFileAttributesW')
         $code = $code.Replace('DeleteFileA', 'DeleteFileW')
         $code = $code.Replace('CopyFileA', 'CopyFileW')
-        $code = $code.Replace('lstrcmpA', 'lstrcmpW')
         
-        # Вырезаем нахуй кривой wcstombs_s со всеми аргументами до точки с запятой
+        # Вырезаем нахуй кривой wcstombs_s
         $code = $code -replace 'wcstombs_s[^;]+;', ''
         
         $code | Set-Content MaplePS.cpp
