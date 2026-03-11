@@ -11,15 +11,29 @@ jobs:
     - name: Setup MSBuild
       uses: microsoft/setup-msbuild@v2
 
-    - name: Patch Code (Anti-Shitcode)
+    - name: Patch Code (Full Unicode Conversion)
       shell: powershell
       run: |
-        # Убираем L перед строками, чтобы превратить юникод в обычные строки
-        (Get-Content MaplePS.cpp) -replace 'L"', '"' | Set-Content MaplePS.cpp
-        # Меняем CreateProcessA на CreateProcessW или наоборот - тут костыль под код
-        (Get-Content MaplePS.cpp) -replace 'CreateProcessA', 'CreateProcess' | Set-Content MaplePS.cpp
-        # Пытаемся пофиксить корявый вызов wcstombs_s (заменяем на заглушку, если не критично)
-        (Get-Content MaplePS.cpp) -replace 'wcstombs_s', '//wcstombs_s' | Set-Content MaplePS.cpp
+        $path = "MaplePS.cpp"
+        $code = Get-Content $path
+        
+        # 1. Добавляем L ко всем строкам, у которых его нет
+        # Это пофиксит ошибки сложения wstring + "string"
+        $code = $code -replace '(?<!L)"(.*?)"', 'L"$1"'
+        
+        # 2. Меняем Ansi-функции на Wide-версии, раз уж мы в Unicode моде
+        $code = $code -replace 'CreateProcessA', 'CreateProcessW'
+        $code = $code -replace 'GetFileAttributesA', 'GetFileAttributesW'
+        $code = $code -replace 'SetFileAttributesA', 'SetFileAttributesW'
+        $code = $code -replace 'DeleteFileA', 'DeleteFileW'
+        $code = $code -replace 'CopyFileA', 'CopyFileW'
+        $code = $code -replace 'MessageBoxA', 'MessageBoxW'
+        $code = $code -replace 'CHAR', 'WCHAR'
+        
+        # 3. Фиксим wcstombs_s - это мусор для логов, просто закомментим его
+        $code = $code -replace 'wcstombs_s', '//wcstombs_s'
+        
+        $code | Set-Content $path
 
     - name: Build Solution
       run: msbuild MaplePS.sln /p:Configuration=Release /p:Platform=x64 /p:CharacterSet=Unicode
