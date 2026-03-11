@@ -11,18 +11,32 @@ jobs:
     - name: Setup MSBuild
       uses: microsoft/setup-msbuild@v2
 
-    - name: Surgical Patch v2 (Final Boss)
+    - name: Memory Leak Fix (Process Finder)
       shell: powershell
       run: |
         $code = Get-Content -Raw MaplePS.cpp
+        
+        # Меняем сигнатуру функции на Wide
+        $code = $code.Replace('DWORD ProcessID(const char* lpProcessName)', 'DWORD ProcessID(const wchar_t* lpProcessName)')
+        
+        # Вырезаем старый буфер, который жрал память
+        $code = $code.Replace('char lpCurrentProcessName[255];', '')
+        
+        # Вырезаем кривую конвертацию
+        $code = $code -replace 'wcstombs_s[^;]+;', ''
+        
+        # Заставляем сравнивать напрямую нормальную юникодную строку из системы
+        $code = $code.Replace('lstrcmpA(lpCurrentProcessName, lpProcessName)', 'lstrcmpW(ProcList.szExeFile, lpProcessName)')
+        
+        # Фиксим вызов в мейне
+        $code = $code.Replace('ProcessID("osu!.exe")', 'ProcessID(L"osu!.exe")')
+        
+        # Остальные А->W замены
         $code = $code.Replace('CreateProcessA', 'CreateProcessW')
         $code = $code.Replace('GetFileAttributesA', 'GetFileAttributesW')
         $code = $code.Replace('SetFileAttributesA', 'SetFileAttributesW')
         $code = $code.Replace('DeleteFileA', 'DeleteFileW')
         $code = $code.Replace('CopyFileA', 'CopyFileW')
-        
-        # Вырезаем нахуй кривой wcstombs_s
-        $code = $code -replace 'wcstombs_s[^;]+;', ''
         
         $code | Set-Content MaplePS.cpp
 
